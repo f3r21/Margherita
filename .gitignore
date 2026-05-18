@@ -1,0 +1,24 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Built app bundles
+*.app/
+
+# macOS
+.DS_Store
+
+# Xcode (if anyone opens the package in Xcode)
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+*.xcuserdatad/
+xcuserdata/
+
+# IDEs / editors
+.idea/
+.vscode/
+
+# Local-only files
+*.local
