@@ -4,7 +4,7 @@
 #
 # Claude Code invokes this as its `statusLine` command, piping the session
 # JSON payload on stdin. The script extracts the rate-limit meters and writes
-# them atomically to ~/.claude/indicator.json, which the ClaudeIndicator menu
+# them atomically to ~/.claude/indicator.json, which the Margherita menu
 # bar app watches. It also prints a compact usage line as the visible status.
 #
 # Dependencies: bash + jq only. No network access.
