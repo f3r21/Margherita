@@ -22,3 +22,7 @@ xcuserdata/
 
 # Local-only files
 *.local
+
+# Packages and distributions
+*.dmg
+

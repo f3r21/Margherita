@@ -41,7 +41,7 @@ final class RateLimitFileWatcher {
 
     private weak var model: IndicatorModel?
     private var source: DispatchSourceFileSystemObject?
-    private let log = Logger(subsystem: "local.claude-indicator", category: "watcher")
+    private let log = Logger(subsystem: "local.margherita", category: "watcher")
 
     init(model: IndicatorModel) {
         self.model = model
@@ -64,6 +64,15 @@ final class RateLimitFileWatcher {
 
     private func startWatchingDirectory() {
         let directory = Self.fileURL.deletingLastPathComponent()
+        if !FileManager.default.fileExists(atPath: directory.path) {
+            do {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                log.info("Directorio ~/.claude creado con éxito")
+            } catch {
+                log.error("No se pudo crear el directorio ~/.claude: \(error.localizedDescription)")
+            }
+        }
+
         let fd = open(directory.path, O_EVTONLY)
         guard fd >= 0 else {
             log.error("no se pudo abrir el directorio para observar")

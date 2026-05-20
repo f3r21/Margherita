@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 @main
-struct ClaudeIndicatorApp: App {
+struct MargheritaApp: App {
     @StateObject private var model = IndicatorModel()
 
     var body: some Scene {
@@ -25,7 +25,8 @@ struct MenuBarLabel: View {
             percent: model.percent,
             resetProgress: model.resetProgress,
             shape: model.shape,
-            polygonSides: model.polygonSides
+            polygonSides: model.polygonSides,
+            isPlaceholder: model.dataSource == .statusLine && model.updatedAt == nil
         ))
     }
 }

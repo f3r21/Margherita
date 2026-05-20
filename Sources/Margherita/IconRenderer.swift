@@ -40,6 +40,7 @@ enum IconRenderer {
         resetProgress: Double,
         shape: IndicatorShape,
         polygonSides: Int,
+        isPlaceholder: Bool = false,
         size: NSSize = pointSize
     ) -> NSImage {
         let image = NSImage(size: size, flipped: false) { rect in
@@ -48,7 +49,8 @@ enum IconRenderer {
                 percent: percent,
                 resetProgress: resetProgress,
                 shape: shape,
-                polygonSides: polygonSides
+                polygonSides: polygonSides,
+                isPlaceholder: isPlaceholder
             )
             return true
         }
@@ -61,12 +63,18 @@ enum IconRenderer {
         percent: Double,
         resetProgress: Double,
         shape: IndicatorShape,
-        polygonSides: Int
+        polygonSides: Int,
+        isPlaceholder: Bool
     ) {
         let center = NSPoint(x: rect.midX, y: rect.midY)
         let radius = min(rect.width, rect.height) / 2.0 - 1.0
         let pct = min(100.0, max(0.0, percent))
         let reset = min(100.0, max(0.0, resetProgress))
+
+        if isPlaceholder {
+            drawPlaceholder(center: center, radius: radius, shape: shape, polygonSides: polygonSides)
+            return
+        }
 
         switch shape {
         case .circle:
@@ -76,6 +84,45 @@ enum IconRenderer {
                         k: max(3, polygonSides),
                         percent: pct, resetProgress: reset)
         }
+    }
+
+    private static func drawPlaceholder(
+        center: NSPoint, radius: CGFloat,
+        shape: IndicatorShape, polygonSides: Int
+    ) {
+        let path: NSBezierPath
+        switch shape {
+        case .circle:
+            path = NSBezierPath(ovalIn: NSRect(
+                x: center.x - radius, y: center.y - radius,
+                width: radius * 2, height: radius * 2
+            ))
+        case .polygon:
+            let k = max(3, polygonSides)
+            let base = Double.pi / 2.0
+            let stepRad = 2.0 * .pi / Double(k)
+            path = NSBezierPath()
+            let first = NSPoint(
+                x: center.x + radius * CGFloat(cos(base)),
+                y: center.y + radius * CGFloat(sin(base))
+            )
+            path.move(to: first)
+            for i in 1..<k {
+                let a = base + Double(i) * stepRad
+                let pt = NSPoint(
+                    x: center.x + radius * CGFloat(cos(a)),
+                    y: center.y + radius * CGFloat(sin(a))
+                )
+                path.line(to: pt)
+            }
+            path.close()
+        }
+        
+        path.lineWidth = 1.0
+        let pattern: [CGFloat] = [2.0, 2.0]
+        path.setLineDash(pattern, count: 2, phase: 0.0)
+        NSColor.black.withAlphaComponent(0.6).setStroke()
+        path.stroke()
     }
 
     // MARK: - Circulo (sin segmentos)
