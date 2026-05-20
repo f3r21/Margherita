@@ -432,7 +432,7 @@ final class IndicatorModel: ObservableObject {
 
     // MARK: - Actualizaciones Automáticas
     func checkUpdates() {
-        guard let url = URL(string: "https://api.github.com/repos/f3r21/claude-usage-menubar/releases/latest") else { return }
+        guard let url = URL(string: "https://api.github.com/repos/f3r21/Margherita/releases/latest") else { return }
         var request = URLRequest(url: url)
         request.setValue("Margherita/\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0") (Macintosh; macOS)", forHTTPHeaderField: "User-Agent")
         

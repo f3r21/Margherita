@@ -60,13 +60,13 @@ struct Localizer {
         "minutes": [.spanish: "%d minuto(s)", .english: "%d minute(s)"],
         "hours": [.spanish: "%d hora(s)", .english: "%d hour(s)"],
         "days": [.spanish: "%d día(s)", .english: "%d day(s)"],
-        "quota_exceeded_title": [.spanish: "Límite de Claude alcanzado ⏳", .english: "Claude limit reached ⏳"],
+        "quota_exceeded_title": [.spanish: "Límite de Claude alcanzado", .english: "Claude limit reached"],
         "quota_exceeded_body": [.spanish: "Has consumido el 100% de tu cuota (%@). Se restablecerá en %@.", .english: "You have consumed 100% of your quota (%@). It will reset in %@."],
-        "quota_exceeded_test_title": [.spanish: "Límite de Claude alcanzado (Prueba) ⏳", .english: "Claude limit reached (Test) ⏳"],
+        "quota_exceeded_test_title": [.spanish: "Límite de Claude alcanzado (Prueba)", .english: "Claude limit reached (Test)"],
         "quota_exceeded_test_body": [.spanish: "Has consumido el 100% de tu cuota de prueba. Esta es una notificación de prueba en modo manual.", .english: "You have consumed 100% of your test quota. This is a manual test notification."],
-        "quota_reset_title": [.spanish: "Cuota de Claude restablecida ✅", .english: "Claude quota reset ✅"],
+        "quota_reset_title": [.spanish: "Cuota de Claude restablecida", .english: "Claude quota reset"],
         "quota_reset_body": [.spanish: "Tu saldo de uso de Claude se ha restablecido por completo. ¡Ya puedes continuar programando!", .english: "Your Claude usage balance has been fully reset. You can now resume coding!"],
-        "update_available_title": [.spanish: "Actualización disponible 🚀", .english: "Update available 🚀"],
+        "update_available_title": [.spanish: "Actualización disponible", .english: "Update available"],
         "update_available_body": [.spanish: "Una nueva versión (%@) está disponible. Haz clic para actualizar Margherita.", .english: "A new version (%@) is available. Click to update Margherita."]
     ]
 }

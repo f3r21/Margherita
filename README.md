@@ -1,78 +1,75 @@
-# Margherita 🍕🌎
+# Margherita
 
-A premium, native macOS menu bar application that displays your live Claude rate limits and usage from Claude Code in real time — with zero authentication tokens, reverse engineering, or scraping. It seamlessly hooks into Claude Code's official `statusLine` extension point.
+Margherita is a high-performance, native macOS menu bar application designed to display real-time Claude Code rate limits and usage statistics. Operating with zero authentication tokens, reverse engineering, or scraping, it hooks directly into Claude Code's official `statusLine` extension point.
 
-> [!NOTE]
-> Margherita is dynamic and automatically localizes its entire user interface and native notifications to English or Spanish based on your macOS system language.
+The application automatically localizes its entire interface and native notifications to English or Spanish based on your macOS system language.
+
+---
+
+## Technical Architecture
+
+```
+Claude Code  --[stdin JSON]--->  statusline-indicator.sh
+                                         |
+                                         v atomic mv
+                                ~/.claude/indicator.json
+                                         |
+                                         v DispatchSourceFileSystemObject
+                                RateLimitFileWatcher (Swift)
+                                         |
+                                         v @Published
+                                IndicatorModel  --->  Menu bar icon & popover
+```
+
+1. **Claude Code Hook**: When queries are processed, Claude Code feeds rate limit JSON payload directly to our custom `statusline-indicator.sh` script via standard input.
+2. **Atomic Storage**: The script processes and writes the limits to `~/.claude/indicator.json` using atomic temporary moves to avoid file-read conflicts.
+3. **Directory Watcher**: Margherita's Swift-based `RateLimitFileWatcher` monitors the file in `~/.claude/` asynchronously without taking CPU cycles.
+4. **Adaptive UI Rendering**: The `IndicatorModel` updates percentages, triggers native notifications, and redraws the template vector menu bar icon.
 
 ---
 
 ## Key Features
 
-- **Live Visual Indicator**: Renders a sleek, adaptive vector icon in the menu bar showing your weekly (`seven_day`) or session (`five_hour`) Claude quota.
-- **Multilingual Support**: Automatically detects and adapts to English and Spanish locales dynamically.
-- **Automatic GitHub Update Checker**: Automatically checks GitHub Releases for new updates without external dependencies and shows a beautifully styled green/teal gradient banner directly inside the popover.
-- **Native macOS Notifications**: Beautifully formatted local alerts that warn you when you consume 100% of your usage or when your quota gets reset.
-- **Launch at Login**: Simple macOS system toggle to launch Margherita automatically on startup.
-- **Interactive Manual Mode**: Manual slider options to test different indicator states, quota values, and geometries (circle vs. 3-10 sided polygon).
+* **Live Visual Indicator**: A template vector icon in the menu bar that dynamically updates to show your weekly (`seven_day`) or session (`five_hour`) Claude quota.
+* **Multilingual Support**: Automatic localization for English and Spanish system locales.
+* **Automatic Update Checker**: Periodic, non-blocking check against GitHub Releases to notify you of newer versions using a sleek gradient banner in the popover.
+* **Native macOS Notifications**: Notifications that warn you when your usage reaches 100% or when your quota has been fully reset.
+* **Launch at Login**: Integrates with the macOS Service Management framework to launch automatically on startup.
+* **Interactive Manual Mode**: A testing slider inside the popover to manually adjust percentages, shapes (circle or 3-10 sided polygons), and notification events.
 
 ---
 
-## How It Works
+## Free & Native Local Distribution
 
-```
-Claude Code  ─[stdin JSON]─►  statusline-indicator.sh
-                                       │
-                                       ▼ atomic mv
-                              ~/.claude/indicator.json
-                                       │
-                                       ▼ DispatchSourceFileSystemObject
-                              RateLimitFileWatcher (Swift)
-                                       │
-                                       ▼ @Published
-                              IndicatorModel  ──►  menu bar icon & popover
-```
-
-1. **Claude Code statusLine Hook**: Whenever you run a query, Claude Code feeds rate limit JSON data directly to our custom `statusline-indicator.sh` script via standard input.
-2. **Atomic JSON Storage**: The script processes and writes the limits to `~/.claude/indicator.json` using atomic temporary moves.
-3. **Directory Watcher**: Margherita's swift-based `RateLimitFileWatcher` monitors files in the `~/.claude/` directory without taking CPU cycles.
-4. **Adaptive UI Render**: The `IndicatorModel` updates percentages, triggers native notifications, and redraws the template vector menu bar icon.
-
----
-
-## Free & Native Local Distribution Setup
-
-To distribute and run Margherita 100% for free without a paid Apple Developer Account, follow these instructions.
+To distribute and run Margherita without a paid Apple Developer Account, follow these instructions to compile, sign, and install it locally.
 
 ### 1. Build and Ad-hoc Sign the App
-The provided `Makefile` automatically runs native Swift Package Manager compilations in release mode and applies **ad-hoc codesigning** directly via the macOS standard system tools:
+The provided `Makefile` automatically runs native Swift Package Manager compilations in release mode and applies ad-hoc codesigning directly via standard macOS tools:
 
 ```bash
 # Clone the repository
-git clone https://github.com/f3r21/claude-usage-menubar.git
-cd claude-usage-menubar/native
+git clone https://github.com/f3r21/Margherita.git
+cd Margherita/native
 
 # Compile, sign and install to /Applications
 make install
 ```
 
-The app is signed locally using:
+The application is signed locally using:
 ```bash
 codesign --force --deep --sign - Margherita.app
 ```
 This is fully secure, completely free, and recognized by macOS for local command execution.
 
----
-
 ### 2. Free Gatekeeper Bypass
-Since Margherita is ad-hoc signed, launching it for the first time on a machine will prompt a Gatekeeper security warning ("unidentified developer"). 
+Since Margherita is ad-hoc signed, launching it for the first time will trigger a Gatekeeper security warning ("unidentified developer"). 
 
-You can bypass this instantly and safely using one of these two free methods:
+You can bypass this instantly and safely using one of these two methods:
 
 #### Method A: Right-Click Open (Recommended)
-1. Open Finder and go to `/Applications`.
+1. Open Finder and navigate to `/Applications`.
 2. **Right-click** (or Control-click) `Margherita.app` and choose **Open**.
-3. A dialog will appear asking you to confirm. Click **Open**. Margherita will now be fully trusted by your system and open normally on all future launches.
+3. A confirmation dialog will appear. Click **Open**. Margherita will now be trusted by your system and open normally on all future launches.
 
 #### Method B: Terminal Command
 Alternatively, remove the quarantine attribute directly via your terminal:
@@ -83,13 +80,13 @@ xattr -d com.apple.quarantine /Applications/Margherita.app
 ---
 
 ### 3. Homebrew Tap Installation
-You can distribute Margherita as a Homebrew Cask to your friends or teammates for free using a **personal Homebrew Tap**.
+You can distribute Margherita as a Homebrew Cask to other machines using a personal Homebrew Tap.
 
-1. Create a public GitHub repository named `homebrew-tap` (e.g., `github.com/your-username/homebrew-tap`).
+1. Create a public GitHub repository named `homebrew-tap` (e.g., `github.com/f3r21/homebrew-tap`).
 2. Add the custom Cask file (`margherita.rb` located in `resources/margherita.rb`) into a folder named `Casks/margherita.rb` inside that repository.
 3. Users will now be able to install Margherita with a single, simple command:
    ```bash
-   brew tap your-username/tap
+   brew tap f3r21/tap
    brew install --cask margherita
    ```
 4. To run Margherita after a Brew installation, simply right-click it in `/Applications` once to bypass Gatekeeper.
@@ -114,7 +111,7 @@ make dmg       # Package the application into a distribution-ready Margherita.dm
 ├── scripts/
 │   └── statusline-indicator.sh              Claude Code stdin processing hook
 ├── resources/
-│   ├── AppIcon.icns                         The compiled 4096px high-res icons
+│   ├── AppIcon.icns                         The compiled high-resolution icon bundle
 │   └── margherita.rb                        Homebrew Cask recipe file
 └── Sources/Margherita/
     ├── MargheritaApp.swift                  App lifecycle & MenuBarExtra extra scene
