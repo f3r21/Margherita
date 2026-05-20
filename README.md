@@ -61,21 +61,30 @@ codesign --force --deep --sign - Margherita.app
 ```
 This is fully secure, completely free, and recognized by macOS for local command execution.
 
-### 2. Free Gatekeeper Bypass
-Since Margherita is ad-hoc signed, launching it for the first time will trigger a Gatekeeper security warning ("unidentified developer"). 
+### 2. Free Gatekeeper & Signature Bypass for Pre-built Binaries
 
-You can bypass this instantly and safely using one of these two methods:
+If you or other users download the pre-built `Margherita.dmg` or install it via the **Homebrew Cask**, the binary carries an ad-hoc signature created on the builder's machine. macOS treats this signature as invalid on other hardware, which causes the application to crash immediately on launch with a `SIGKILL` (`EXC_BAD_SIGNATURE`) error.
 
-#### Method A: Right-Click Open (Recommended)
-1. Open Finder and navigate to `/Applications`.
-2. **Right-click** (or Control-click) `Margherita.app` and choose **Open**.
-3. A confirmation dialog will appear. Click **Open**. Margherita will now be trusted by your system and open normally on all future launches.
+To resolve this completely and securely, users must re-sign the app locally and strip the quarantine attribute:
 
-#### Method B: Terminal Command
-Alternatively, remove the quarantine attribute directly via your terminal:
+#### The One-Step Terminal Fix (Recommended)
+Open your terminal and run the following command to re-sign and un-quarantine the app in a single step:
 ```bash
-xattr -d com.apple.quarantine /Applications/Margherita.app
+codesign --force --deep --sign - /Applications/Margherita.app && xattr -d com.apple.quarantine /Applications/Margherita.app 2>/dev/null || true
 ```
+
+#### Manual Steps
+Alternatively, you can run the steps individually:
+
+1. **Re-sign Locally**: Re-sign the app with your own machine's local ad-hoc identity to fix the `EXC_BAD_SIGNATURE` crash:
+   ```bash
+   codesign --force --deep --sign - /Applications/Margherita.app
+   ```
+2. **Un-quarantine (Bypass Gatekeeper)**: Clear the system download flag to prevent the "unidentified developer" prompt:
+   ```bash
+   xattr -d com.apple.quarantine /Applications/Margherita.app
+   ```
+   *(Or **Right-click** `Margherita.app` in Finder, select **Open**, and click **Open** on the prompt).*
 
 ---
 
@@ -84,12 +93,15 @@ You can distribute Margherita as a Homebrew Cask to other machines using a perso
 
 1. Create a public GitHub repository named `homebrew-tap` (e.g., `github.com/f3r21/homebrew-tap`).
 2. Add the custom Cask file (`margherita.rb` located in `resources/margherita.rb`) into a folder named `Casks/margherita.rb` inside that repository.
-3. Users will now be able to install Margherita with a single, simple command:
+3. Users will now be able to install Margherita with a single command:
    ```bash
    brew tap f3r21/tap
    brew install --cask margherita
    ```
-4. To run Margherita after a Brew installation, simply right-click it in `/Applications` once to bypass Gatekeeper.
+4. **Important**: Because the downloaded binary is pre-built, they must run the local re-signing command right after installation:
+   ```bash
+   codesign --force --deep --sign - /Applications/Margherita.app && xattr -d com.apple.quarantine /Applications/Margherita.app 2>/dev/null || true
+   ```
 
 ---
 
