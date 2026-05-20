@@ -10,7 +10,6 @@ cask "margherita" do
   app "Margherita.app"
 
   zap trash: [
-    "~/.claude/settings.json",
     "~/Library/Preferences/local.margherita.plist",
   ]
 end
