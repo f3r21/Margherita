@@ -76,8 +76,10 @@ final class RateLimitFileWatcher {
         let fd = open(directory.path, O_EVTONLY)
         guard fd >= 0 else {
             log.error("no se pudo abrir el directorio para observar")
+            model?.isWatcherActive = false
             return
         }
+        model?.isWatcherActive = true
 
         let src = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: fd,

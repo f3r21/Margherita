@@ -79,4 +79,52 @@ final class MargheritaTests: XCTestCase {
         XCTAssertTrue(model.resetProgress > 90.0, "El reset progress debería ser alto (~99%) ya que falta solo 1 hora de una ventana de 7 días")
         XCTAssertTrue(model.resetProgress <= 100.0)
     }
+
+    func testHumanDurationBuckets() {
+        let now = Date()
+        XCTAssertEqual(
+            IndicatorModel.humanDuration(until: now.addingTimeInterval(-10), now: now),
+            Localizer.shared.tr("soon")
+        )
+        XCTAssertTrue(IndicatorModel.humanDuration(until: now.addingTimeInterval(30 * 60), now: now).contains("30"))
+        XCTAssertTrue(IndicatorModel.humanDuration(until: now.addingTimeInterval(3 * 3600), now: now).contains("3"))
+        XCTAssertTrue(IndicatorModel.humanDuration(until: now.addingTimeInterval(2 * 24 * 3600), now: now).contains("2"))
+    }
+
+    func testEffectiveMeterKeyFallsBackWhenPrimaryAbsent() {
+        let model = IndicatorModel()
+        model.dataSource = .statusLine
+        model.primaryMeter = "seven_day"
+
+        // Payload de un plan SIN seven_day: el icono debe seguir actualizándose.
+        let meter = MeterData(usedPercentage: 20.0, resetsAtUnix: Date().timeIntervalSince1970 + 3600)
+        model.applyStatusLineData(IndicatorFile(
+            updatedAt: "2026-05-20T03:43:56Z", primaryMeter: "five_hour",
+            rateLimits: ["five_hour": meter]
+        ))
+
+        XCTAssertEqual(model.effectiveMeterKey, "five_hour")
+        XCTAssertEqual(model.percent, 80.0)
+    }
+
+    func testMenuBarTextHonorsToggle() {
+        let model = IndicatorModel()
+        model.dataSource = .statusLine
+        model.primaryMeter = "seven_day"
+        let meter = MeterData(usedPercentage: 35.0, resetsAtUnix: Date().timeIntervalSince1970 + 3600)
+        model.applyStatusLineData(IndicatorFile(
+            updatedAt: "2026-05-20T03:43:56Z", primaryMeter: "seven_day",
+            rateLimits: ["seven_day": meter]
+        ))
+
+        model.showPercentInMenuBar = false
+        XCTAssertNil(model.menuBarText)
+
+        model.showPercentInMenuBar = true
+        XCTAssertEqual(model.menuBarText, "65%")
+    }
+
+    func testMeterLabelHumanizesUnknownKey() {
+        XCTAssertEqual(Localizer.shared.meterLabel("monthly_opus"), "Monthly Opus")
+    }
 }

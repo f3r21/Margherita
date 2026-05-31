@@ -24,13 +24,24 @@ struct PopoverView: View {
                         RoundedRectangle(cornerRadius: 8)
                             .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
                     )
+                    // Decorativa: los readouts a la derecha ya exponen los números.
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 6) {
                     if model.dataSource == .statusLine {
                         // Datos reales: solo lectura, sin sliders.
                         readoutRow(title: Localizer.shared.tr("availability"), value: model.percent, accent: .primary)
                         if model.percent == 0 {
-                            readoutRow(title: Localizer.shared.tr("reset_progress"), value: model.resetProgress, accent: .secondary)
+                            // Cuenta atrás humana ("Se restablece en 3 hora(s)").
+                            HStack {
+                                Text(Localizer.shared.tr("reset_in"))
+                                    .foregroundColor(.secondary)
+                                    .font(.caption)
+                                Spacer()
+                                Text(model.resetETAText ?? Localizer.shared.tr("soon"))
+                                    .font(.system(.caption, design: .rounded).monospacedDigit())
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     } else {
                         // Modo manual: sliders de prueba.
@@ -45,7 +56,7 @@ struct PopoverView: View {
             sourceLine
 
             if model.dataSource == .statusLine && !model.meters.isEmpty {
-                meterPicker
+                allMetersSection
             }
 
             integrationSection
@@ -91,6 +102,11 @@ struct PopoverView: View {
                     .font(.caption)
                     .toggleStyle(.switch)
                     .controlSize(.mini)
+
+                Toggle(Localizer.shared.tr("show_percent"), isOn: $model.showPercentInMenuBar)
+                    .font(.caption)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
             }
 
             Divider()
@@ -113,6 +129,11 @@ struct PopoverView: View {
         }
         .padding(14)
         .frame(width: 280)
+        .onAppear {
+            // Re-chequear al abrir: el aviso de jq/hook se limpia sin relanzar.
+            model.checkJqInstallation()
+            model.checkHookInstallation()
+        }
     }
 
     // MARK: - Subvistas
@@ -120,57 +141,97 @@ struct PopoverView: View {
     @ViewBuilder
     private var updateBanner: some View {
         if model.isUpdateAvailable {
-            Button(action: {
-                if let url = URL(string: model.latestVersionURL) {
-                    NSWorkspace.shared.open(url)
-                }
-            }) {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.title3)
-                        .foregroundColor(.white)
-                    
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(Localizer.shared.tr("update_available_title"))
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                        Text(Localizer.shared.tr("update_available_body", model.latestVersionString))
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.9))
-                            .multilineTextAlignment(.leading)
+            HStack(spacing: 6) {
+                Button {
+                    if let url = URL(string: model.latestVersionURL) {
+                        NSWorkspace.shared.open(url)
                     }
-                    
-                    Spacer()
-                    
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundColor(.white.opacity(0.8))
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.title3)
+                            .foregroundColor(.white)
+                            .accessibilityHidden(true)
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(Localizer.shared.tr("update_available_title"))
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                            Text(Localizer.shared.tr("update_available_body", model.latestVersionString))
+                                .font(.system(size: 9))
+                                .foregroundColor(.white.opacity(0.9))
+                                .multilineTextAlignment(.leading)
+                        }
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
                 }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 10)
-                .background(
-                    LinearGradient(
-                        colors: [Color.green, Color.teal],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .buttonStyle(.plain)
+                .help(model.latestVersionNotes.isEmpty
+                      ? Localizer.shared.tr("update_available_body", model.latestVersionString)
+                      : model.latestVersionNotes)
+
+                // Omitir esta versión: no se vuelve a anunciar.
+                Button {
+                    model.skipCurrentUpdate()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white.opacity(0.85))
+                        .padding(6)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(Localizer.shared.tr("skip_version"))
+                .accessibilityLabel(Localizer.shared.tr("skip_version"))
             }
-            .buttonStyle(.plain)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background(
+                // Verde/teal oscuros para que el texto blanco supere WCAG AA (~4.5:1).
+                LinearGradient(
+                    colors: [Color(red: 0.11, green: 0.44, blue: 0.30),
+                             Color(red: 0.09, green: 0.40, blue: 0.42)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 
     @ViewBuilder
     private var statusBanners: some View {
         if model.dataSource == .statusLine {
+            if !model.isWatcherActive {
+                // El observador de ~/.claude no arrancó: los datos no se refrescarán.
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "eye.slash.fill")
+                        .foregroundColor(.red)
+                        .font(.body)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(Localizer.shared.tr("watcher_inactive"))
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.red)
+                        Text(Localizer.shared.tr("watcher_inactive_desc"))
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(8)
+                .background(Color.red.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
             if model.updatedAt == nil {
                 // Banner de espera inicial
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "clock.arrow.circlepath")
                         .foregroundColor(.blue)
                         .font(.body)
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(Localizer.shared.tr("waiting_data"))
                             .font(.caption)
@@ -190,6 +251,7 @@ struct PopoverView: View {
                     Image(systemName: "exclamationmark.clock.fill")
                         .foregroundColor(.orange)
                         .font(.body)
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(Localizer.shared.tr("stale_data"))
                             .font(.caption)
@@ -204,6 +266,26 @@ struct PopoverView: View {
                 .background(Color.orange.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
+        } else {
+            // Modo manual: aviso claro de que los datos NO son reales.
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "slider.horizontal.3")
+                    .foregroundColor(.orange)
+                    .font(.body)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Localizer.shared.tr("manual_active"))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.orange)
+                    Text(Localizer.shared.tr("manual_active_desc"))
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(8)
+            .background(Color.orange.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
 
@@ -215,6 +297,7 @@ struct PopoverView: View {
                   ? "antenna.radiowaves.left.and.right"
                   : "slider.horizontal.3")
                 .font(.caption2)
+                .accessibilityHidden(true)
             Text(sourceText)
                 .font(.caption2)
         }
@@ -246,7 +329,8 @@ struct PopoverView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
                         .font(.body)
-                    VStack(alignment: .leading, spacing: 2) {
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(Localizer.shared.tr("jq_missing"))
                             .font(.caption)
                             .fontWeight(.semibold)
@@ -254,6 +338,15 @@ struct PopoverView: View {
                         Text(Localizer.shared.tr("jq_missing_desc"))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString("brew install jq", forType: .string)
+                        } label: {
+                            Label(Localizer.shared.tr("copy_command"), systemImage: "doc.on.doc")
+                                .font(.system(size: 10))
+                        }
+                        .buttonStyle(.link)
+                        .help("brew install jq")
                     }
                 }
                 .padding(8)
@@ -271,6 +364,7 @@ struct PopoverView: View {
                         Circle()
                             .fill(model.isHookInstalled ? Color.green : Color.red)
                             .frame(width: 6, height: 6)
+                            .accessibilityHidden(true)
                         Text(model.isHookInstalled ? Localizer.shared.tr("linked") : Localizer.shared.tr("not_linked"))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
@@ -299,29 +393,78 @@ struct PopoverView: View {
                         .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
                 )
             }
+
+            if let hookError = model.hookError {
+                Text(hookError)
+                    .font(.system(size: 10))
+                    .foregroundColor(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
-    /// Selector del meter primario entre los presentes en el ultimo payload.
+    /// Lista de TODOS los meters del último payload (no solo el primario).
+    /// Cada fila muestra disponibilidad + barra y permite elegir cuál alimenta
+    /// el icono; el activo queda resaltado.
     @ViewBuilder
-    private var meterPicker: some View {
-        HStack {
-            Text(Localizer.shared.tr("meter"))
-                .foregroundColor(.secondary)
+    private var allMetersSection: some View {
+        let activeKey = model.effectiveMeterKey
+        VStack(alignment: .leading, spacing: 6) {
+            Text(Localizer.shared.tr("meters"))
                 .font(.caption)
-            Spacer()
-            Picker(Localizer.shared.tr("meter"), selection: $model.primaryMeter) {
-                ForEach(model.meters.keys.sorted(), id: \.self) { key in
-                    Text(meterLabel(key)).tag(key)
-                }
+                .foregroundColor(.secondary)
+                .fontWeight(.medium)
+            ForEach(model.meters.keys.sorted(), id: \.self) { key in
+                meterRow(key: key, isActive: key == activeKey)
             }
-            .labelsHidden()
-            .frame(width: 120)
         }
+    }
+
+    @ViewBuilder
+    private func meterRow(key: String, isActive: Bool) -> some View {
+        let used = model.meters[key]?.usedPercentage ?? 0
+        let avail = max(0.0, min(100.0, 100.0 - used))
+        Button {
+            model.primaryMeter = key
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
+                    Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
+                        .font(.system(size: 9))
+                        .foregroundColor(isActive ? .accentColor : .secondary)
+                        .accessibilityHidden(true)
+                    Text(meterLabel(key))
+                        .font(.caption)
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Text(String(format: "%.0f%%", avail))
+                        .font(.system(.caption, design: .rounded).monospacedDigit())
+                        .foregroundColor(.secondary)
+                }
+                // Barra propia (Capsule) en vez de ProgressView: .tint sobre
+                // ProgressView lineal no es fiable antes de macOS 15.
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.secondary.opacity(0.2))
+                        Capsule()
+                            .fill(isActive ? Color.accentColor : Color.secondary.opacity(0.6))
+                            .frame(width: geo.size.width * CGFloat(avail / 100.0))
+                    }
+                }
+                .frame(height: 4)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(meterLabel(key))
+        .accessibilityValue(String(format: "%.0f%%", avail))
+        .accessibilityHint(Localizer.shared.tr("a11y_meter_hint"))
+        .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
     }
 
     private func meterLabel(_ key: String) -> String {
-        return Localizer.shared.tr(key)
+        return Localizer.shared.meterLabel(key)
     }
 
     @ViewBuilder
