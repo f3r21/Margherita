@@ -1,0 +1,91 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+**Margherita** is a native macOS menu-bar app that displays Claude Code rate-limit usage — no auth tokens, no scraping. It turns Claude Code's `statusLine` extension point into a live menu-bar icon. A single Swift Package Manager executable; no third-party Swift dependencies (only the stdlib and system frameworks: `SwiftUI`, `AppKit`, `Combine`, `ServiceManagement`, `UserNotifications`, `Foundation`, `os`).
+
+Targets **macOS 13+**. `Package.swift` declares `swift-tools-version:5.9` and does **not** opt into the Swift 6 language mode or strict concurrency — don't assume Swift 6 semantics.
+
+## Repository layout
+
+**This directory (`native/`) is the git repository root and the SwiftPM package root.** Run every command below from here. On the maintainer's machine there is a wrapper directory one level up (`usage-tool/`), but it is *not* part of the repository — keep project guidance (this file) and all paths inside the git root so a fresh clone has them.
+
+## Commands
+
+```bash
+make build      # swift build -c release, then assemble + ad-hoc-codesign Margherita.app bundle
+make run        # build, killall existing instance, open the .app
+make install    # build, copy bundle to /Applications
+make dmg        # build, stage into dmg_staging/, hdiutil → Margherita.dmg
+make clean      # swift package clean + remove .app/.build/.dmg/dmg_staging
+
+swift build -c release           # compile only (bare executable, no bundle)
+swift test                       # run the XCTest suite
+swift test --filter MargheritaTests/testRecomputePercentage   # single test
+swift test --enable-code-coverage
+```
+
+- **`make build` is required to actually run the app.** `swift build` alone produces only the bare executable; the app reads its bundled `statusline-indicator.sh` from `Margherita.app/Contents/Resources/` (resolved at runtime by `installHook()` via `Bundle.main.path`), and only the Makefile assembles that bundle. (`AppIcon.icns` is copied *conditionally* and is only the Finder bundle icon — the LSUIElement app never reads it; the menu-bar icon is drawn entirely in code.)
+- **Incremental-build footgun:** the bundle is a Make target depending only on the release executable + `Info.plist`, and the executable depends only on `Sources/*.swift` + `Package.swift`. Editing `scripts/statusline-indicator.sh` or `resources/AppIcon.icns` alone does **not** retrigger `make build` (they aren't prerequisites) — you get a stale bundle. Touch a source file or `make clean` first.
+- Signing is ad-hoc: `codesign --force --deep --sign - Margherita.app`.
+- `.build/`, `*.app/`, `*.dmg` are gitignored; `dmg_staging/` is **not**, so a leftover from an interrupted `make dmg` can be accidentally committed.
+
+**Runtime dependency:** the hook script needs `jq` on `PATH` (`brew install jq`). The app surfaces a warning in the popover when `jq` is missing; `checkJqInstallation()` checks common install paths first (Homebrew/system/MacPorts/nix/asdf) and, on a miss, falls back to resolving `jq` through the user's login shell (`$SHELL -lc 'command -v jq'`) on a background thread, then re-checks on popover appear.
+
+## Architecture
+
+The core flow turns Claude Code's `statusLine` extension point into a live menu-bar icon:
+
+```
+Claude Code --stdin JSON--> scripts/statusline-indicator.sh --atomic mv--> ~/.claude/indicator.json
+   --> RateLimitFileWatcher (DispatchSource on the DIRECTORY) --> IndicatorModel.applyStatusLineData()
+   --> @Published percent/resetProgress --> IconRenderer template NSImage + PopoverView
+```
+
+Source files (`Sources/Margherita/`), all small and single-responsibility:
+- `MargheritaApp.swift` — `@main` `MenuBarExtra` scene; `MenuBarLabel` re-renders the icon on every model change.
+- `IndicatorModel.swift` — `@MainActor ObservableObject`, the brain: state, persistence, hook install/uninstall, notifications, Launch-at-Login, GitHub update check.
+- `RateLimitFileWatcher.swift` — file watcher + the `IndicatorFile` / `MeterData` Codable structs.
+- `IconRenderer.swift` — vector drawing of the template menu-bar icon.
+- `Localizer.swift` — hand-rolled en/es string table.
+- `PopoverView.swift` — the SwiftUI popover (status, controls, manual-test sliders, update banner). **Also contains `IndicatorPreview`, a second, fully independent vector renderer** that mirrors `IconRenderer`'s geometry in a SwiftUI `Canvas` (using `Color.primary` instead of template alpha). Icon geometry is *duplicated, not shared* — changing shape math, vertex order, reset alpha, or the placeholder dash in `IconRenderer` silently desyncs the popover preview unless you update both.
+
+### Non-obvious behaviors — read before editing
+
+- **No data until `rate_limits` exists.** `rate_limits` is present only on Claude.ai Pro/Max sessions, and only after the first API response. The script (`set -euo pipefail`, fail-fast) no-ops — writes nothing, leaves the prior `indicator.json` intact — when `rate_limits` is absent/empty. So the icon can stay on its dashed "no data yet" placeholder indefinitely even with the hook correctly installed. This is the #1 "why is nothing showing" debugging dead-end.
+
+- **Watches the parent directory, not the file.** The shell script writes via `mv` of a temp file, so the inode changes on every update; a watcher bound to the file would go stale. `RateLimitFileWatcher` opens `~/.claude/` with `O_EVTONLY` and re-reads `indicator.json` on each directory event. The `eventMask` is `[.write, .rename, .extend]` — `.rename` is what catches the atomic `mv`; narrowing it to `.write` would silently break live refresh. The watcher `mkdir`s `~/.claude` if absent, and a *missing* `indicator.json` is a silent no-op (only decode failures are logged) — that's the normal pre-first-data path.
+
+- **The script reshapes the payload; meter *names* are dynamic, the per-meter *shape* is not.** `installHook()` edits `~/.claude/settings.json` to add a `statusLine` key pointing at the bundled `statusline-indicator.sh`. The script iterates every key under `rate_limits` (meter names are **not** hardcoded, so new Claude meters surface automatically), but for each meter it keeps only `used_percentage` and `resets_at_unix` (renamed from the input's `resets_at`), plus top-level `updated_at` and `primary_meter` (chosen dynamically: `seven_day` if present, else the first meter — so the icon still updates on plans without `seven_day`). On the Swift side `recompute()` mirrors this via `effectiveMeterKey` (user's `primaryMeter` → `seven_day` → first available), so a persisted meter choice that's absent from the latest payload won't freeze the icon. Adding a field to `MeterData`/`IndicatorFile` decoding also requires widening the jq map in the script, or the field never reaches the app.
+
+`installHook()`/`uninstallHook()` read `~/.claude/settings.json`, mutate only the `statusLine` key, and write back **atomically** (temp + `replaceItemAt`); if the file exists but can't be parsed they abort and surface `hookError` rather than overwriting (which would destroy the user's other keys).
+
+- **`percent` is availability remaining, inverted from the meter.** The file carries `used_percentage`; `recompute()` stores `percent = 100 - used`. When `percent` hits 0 the icon switches to a second "waiting for reset" state driven by `resetProgress` (0→100 as the reset window elapses). `hitZeroAt` is persisted so reset progress survives restarts, and a 60s `resetTicker` Timer refreshes `resetProgress` while at 0 (it depends on wall-clock time, not file changes). **Magic numbers:** `windowSeconds(for:)` only special-cases `seven_day` (7d) and `five_hour` (5h); every other meter falls back to 5h, so a new meter with a different reset window renders an incorrect reset-progress curve. `isDataStale` flags data older than **12h**.
+
+- **Two data sources, one set of outputs.** `DataSource` is `.statusLine` (real data) or `.manual` (popover sliders, for testing). `percent`/`resetProgress` are *directly writable* in manual mode but *derived* in statusLine mode by `recompute()`. The two modes also fork notification logic (statusLine: `sendQuotaExceededNotification(for:)` with reset-time text; manual: `sendQuotaExceededNotificationManual()` / `sendQuotaResetNotification()`), and both quota-exceeded notifications share the identifier `Margherita.QuotaExceeded` so the latest coalesces over the prior. Guard logic that writes `percent`/`resetProgress` must respect the current `dataSource`.
+
+- **`@Published` setters self-clamp by re-assigning and early-returning.** `percent`, `resetProgress`, and `polygonSides` write a clamped value back to themselves and `return`, re-triggering `didSet`. This is intentional clamp-on-write — don't "simplify" it into an infinite-loop trap. Most settings persist to `UserDefaults`. Note `IconRenderer` only clamps the polygon *lower* bound (`max(3, …)`); the 3–10 upper bound is enforced solely by the `polygonSides` setter.
+
+- **The menu-bar icon is a template image.** `IconRenderer` draws everything in black with varying alpha and sets `isTemplate = true`, so macOS tints it automatically. Alpha is the only meaningful channel: `1.0` = full tint, `0.55` = grey reset state, `0.6` = dashed placeholder, undrawn = transparent. Geometry is computed in Y-up coordinates (`NSImage(flipped: false)`): 12 o'clock = 90°, clockwise = decreasing angle. Both `circle` and `polygon` (3–10 sides) shapes plus a dashed placeholder before first data; the circle draws an exact angular wedge while the polygon quantizes the fill to whole segments, so the two encode the same percent slightly differently.
+
+- **App is an agent (`LSUIElement = YES`)** — menu bar only, no Dock icon. Bundle id `local.margherita`, version in `Info.plist` (`CFBundleShortVersionString`, currently `0.1.0`). The update check hits `https://api.github.com/repos/f3r21/Margherita/releases/latest`, strips a leading `v`/`V` from both tags, and compares with `String.compare(options: .numeric)` — a lexical numeric compare, **not** real SemVer (pre-release/multi-segment tags can mis-sort); the version shown in the UI keeps the original tag.
+
+- **`installHook()` has a hardcoded fallback path.** It resolves the script from the running bundle, but falls back to `/Applications/Margherita.app/Contents/Resources/statusline-indicator.sh` when not run from a bundle. So running the bare `swift build` executable, or installing the `.app` somewhere other than `/Applications`, writes a `statusLine` command pointing at a nonexistent script — the hook silently fails.
+
+- **Localization is code, not `.strings`.** `Localizer` picks es vs en from `Locale.current` at init (default en) and looks up a `[String: [Language: String]]` dictionary; `tr(key, args…)` does `String(format:)` only when `args` is non-empty, and returns the raw key verbatim on a miss. That raw-key fallthrough is exactly what lets unknown meter names render as their key. Add user-facing text here, not in resource files.
+
+### Tests
+
+`Tests/MargheritaTests/` uses **XCTest** (`@MainActor final class … XCTestCase`), not Swift Testing. `IndicatorModel()`'s `init` has real side effects — it starts the `~/.claude` directory watcher, a 60s timer, reads/writes `UserDefaults`, checks `jq`/hook installation, and fires a network update check. It also seeds `isLaunchAtLoginEnabled` and `isNotificationsEnabled`, whose `didSet` observers can **register/unregister the `SMAppService` login item and trigger a system notification-permission prompt** during construction. Any test that instantiates `IndicatorModel` touches the host environment in all these ways.
+
+## Distribution
+
+The app is signed ad-hoc (`codesign --force --deep --sign -`). A pre-built `.dmg`/Homebrew download carries the *builder's* ad-hoc signature, which macOS rejects on other machines (`EXC_BAD_SIGNATURE` / SIGKILL). The fix is to re-sign locally against the installed copy and strip quarantine:
+
+```bash
+codesign --force --deep --sign - /Applications/Margherita.app && xattr -d com.apple.quarantine /Applications/Margherita.app 2>/dev/null || true
+```
+
+Homebrew distribution (cask: `resources/margherita.rb`) is **not live yet** — it requires publishing a `f3r21/homebrew-tap` repo with the cask under `Casks/`. The cask uses `sha256 :no_check` (no integrity verification) and hardcodes `v0.1.0`, which must be kept in lockstep with `CFBundleShortVersionString` and the release tag or `brew install --cask` 404s. `brew uninstall --zap` deliberately removes only `~/Library/Preferences/local.margherita.plist` — it leaves `~/.claude/settings.json` and `~/.claude/indicator.json` alone (the hook is cleaned by the app's own `uninstallHook()`). Full end-user steps are in `README.md`.
