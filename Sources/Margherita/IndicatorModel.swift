@@ -219,7 +219,8 @@ final class IndicatorModel: ObservableObject {
         self.resetTicker = Timer.scheduledTimer(
             withTimeInterval: 60, repeats: true
         ) { [weak self] _ in
-            Task { @MainActor in self?.tickResetProgress() }
+            guard let self else { return }
+            Task { @MainActor in self.tickResetProgress() }
         }
 
         checkJqInstallation()
@@ -361,7 +362,8 @@ final class IndicatorModel: ObservableObject {
         // los rc del shell puede tardar y no debe bloquear el hilo principal.
         Task.detached { [weak self] in
             let found = IndicatorModel.resolvesViaLoginShell("jq")
-            await self?.setJqInstalled(found)
+            guard let self else { return }
+            await self.setJqInstalled(found)
         }
     }
 

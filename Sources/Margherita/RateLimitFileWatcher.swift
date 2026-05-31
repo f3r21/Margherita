@@ -87,7 +87,8 @@ final class RateLimitFileWatcher {
             queue: .main
         )
         src.setEventHandler { [weak self] in
-            Task { @MainActor in self?.readAndApply() }
+            guard let self else { return }
+            Task { @MainActor in self.readAndApply() }
         }
         src.setCancelHandler {
             close(fd)
