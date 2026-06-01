@@ -1,4 +1,5 @@
 import XCTest
+import CoreGraphics
 @testable import Margherita
 
 @MainActor
@@ -25,7 +26,7 @@ final class MargheritaTests: XCTestCase {
     }
 
     func testIsDataStale() {
-        let model = IndicatorModel()
+        let model = IndicatorModel(startServices: false)
         model.dataSource = .statusLine
         
         let nowStr = ISO8601DateFormatter().string(from: Date())
@@ -41,7 +42,7 @@ final class MargheritaTests: XCTestCase {
     }
 
     func testRecomputePercentage() {
-        let model = IndicatorModel()
+        let model = IndicatorModel(startServices: false)
         model.dataSource = .statusLine
         model.primaryMeter = "seven_day"
         
@@ -58,7 +59,7 @@ final class MargheritaTests: XCTestCase {
     }
 
     func testResetProgressCalculation() {
-        let model = IndicatorModel()
+        let model = IndicatorModel(startServices: false)
         model.dataSource = .statusLine
         model.primaryMeter = "seven_day"
         
@@ -92,7 +93,7 @@ final class MargheritaTests: XCTestCase {
     }
 
     func testEffectiveMeterKeyFallsBackWhenPrimaryAbsent() {
-        let model = IndicatorModel()
+        let model = IndicatorModel(startServices: false)
         model.dataSource = .statusLine
         model.primaryMeter = "seven_day"
 
@@ -108,7 +109,7 @@ final class MargheritaTests: XCTestCase {
     }
 
     func testMenuBarTextHonorsToggle() {
-        let model = IndicatorModel()
+        let model = IndicatorModel(startServices: false)
         model.dataSource = .statusLine
         model.primaryMeter = "seven_day"
         let meter = MeterData(usedPercentage: 35.0, resetsAtUnix: Date().timeIntervalSince1970 + 3600)
@@ -126,5 +127,43 @@ final class MargheritaTests: XCTestCase {
 
     func testMeterLabelHumanizesUnknownKey() {
         XCTAssertEqual(Localizer.shared.meterLabel("monthly_opus"), "Monthly Opus")
+    }
+
+    // MARK: - IndicatorGeometry (compartida por IconRenderer e IndicatorPreview)
+
+    func testUsedSegmentsMapAvailability() {
+        // 60% disponible en 10 lados -> 4 segmentos vacíos (usados), 6 llenos.
+        XCTAssertEqual(IndicatorGeometry.usedSegments(sides: 10, percent: 60), 4)
+        XCTAssertEqual(IndicatorGeometry.usedSegments(sides: 10, percent: 100), 0)
+        XCTAssertEqual(IndicatorGeometry.usedSegments(sides: 10, percent: 0), 10)
+    }
+
+    func testResetSegmentsRound() {
+        XCTAssertEqual(IndicatorGeometry.resetSegments(sides: 8, resetProgress: 50), 4)
+        XCTAssertEqual(IndicatorGeometry.resetSegments(sides: 8, resetProgress: 0), 0)
+        XCTAssertEqual(IndicatorGeometry.resetSegments(sides: 8, resetProgress: 100), 8)
+    }
+
+    func testSweepClampsAndConverts() {
+        XCTAssertEqual(IndicatorGeometry.sweepDegrees(forPercent: 50), 180, accuracy: 0.0001)
+        XCTAssertEqual(IndicatorGeometry.sweepDegrees(forPercent: 150), 360, accuracy: 0.0001)
+        XCTAssertEqual(IndicatorGeometry.sweepRadians(forPercent: 100), 2 * .pi, accuracy: 0.0001)
+    }
+
+    func testPolygonVerticesStartAtTwelveOClock() {
+        let center = CGPoint(x: 10, y: 10)
+        let r: CGFloat = 5
+
+        let up = IndicatorGeometry.polygonVertices(center: center, radius: r, sides: 6, yUp: true)
+        XCTAssertEqual(up.count, 6)
+        XCTAssertEqual(up[0].x, 10, accuracy: 0.0001)
+        XCTAssertEqual(up[0].y, 15, accuracy: 0.0001) // AppKit Y-arriba: arriba = y mayor
+
+        let down = IndicatorGeometry.polygonVertices(center: center, radius: r, sides: 6, yUp: false)
+        XCTAssertEqual(down[0].x, 10, accuracy: 0.0001)
+        XCTAssertEqual(down[0].y, 5, accuracy: 0.0001)  // Canvas Y-abajo: arriba = y menor
+
+        // sides < 3 se eleva a 3.
+        XCTAssertEqual(IndicatorGeometry.polygonVertices(center: center, radius: r, sides: 2, yUp: true).count, 3)
     }
 }

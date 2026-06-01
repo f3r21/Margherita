@@ -159,7 +159,7 @@ struct PopoverView: View {
                                 .fontWeight(.bold)
                                 .foregroundColor(.white)
                             Text(Localizer.shared.tr("update_available_body", model.latestVersionString))
-                                .font(.system(size: 9))
+                                .font(.caption2)
                                 .foregroundColor(.white.opacity(0.9))
                                 .multilineTextAlignment(.leading)
                         }
@@ -217,7 +217,7 @@ struct PopoverView: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.red)
                         Text(Localizer.shared.tr("watcher_inactive_desc"))
-                            .font(.system(size: 10))
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -238,7 +238,7 @@ struct PopoverView: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.blue)
                         Text(Localizer.shared.tr("waiting_data_desc"))
-                            .font(.system(size: 10))
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -258,7 +258,7 @@ struct PopoverView: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.orange)
                         Text(Localizer.shared.tr("stale_data_desc"))
-                            .font(.system(size: 10))
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -279,7 +279,7 @@ struct PopoverView: View {
                         .fontWeight(.semibold)
                         .foregroundColor(.orange)
                     Text(Localizer.shared.tr("manual_active_desc"))
-                        .font(.system(size: 10))
+                        .font(.caption2)
                         .foregroundColor(.secondary)
                 }
             }
@@ -336,14 +336,14 @@ struct PopoverView: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.orange)
                         Text(Localizer.shared.tr("jq_missing_desc"))
-                            .font(.system(size: 10))
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                         Button {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString("brew install jq", forType: .string)
                         } label: {
                             Label(Localizer.shared.tr("copy_command"), systemImage: "doc.on.doc")
-                                .font(.system(size: 10))
+                                .font(.caption2)
                         }
                         .buttonStyle(.link)
                         .help("brew install jq")
@@ -366,7 +366,7 @@ struct PopoverView: View {
                             .frame(width: 6, height: 6)
                             .accessibilityHidden(true)
                         Text(model.isHookInstalled ? Localizer.shared.tr("linked") : Localizer.shared.tr("not_linked"))
-                            .font(.system(size: 10))
+                            .font(.caption2)
                             .foregroundColor(.secondary)
                     }
                 }
@@ -396,7 +396,7 @@ struct PopoverView: View {
 
             if let hookError = model.hookError {
                 Text(hookError)
-                    .font(.system(size: 10))
+                    .font(.caption2)
                     .foregroundColor(.red)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -424,13 +424,20 @@ struct PopoverView: View {
     private func meterRow(key: String, isActive: Bool) -> some View {
         let used = model.meters[key]?.usedPercentage ?? 0
         let avail = max(0.0, min(100.0, 100.0 - used))
+        // VoiceOver: al estar agotado (0%), añadir el ETA de reset al valor.
+        let a11yValue: String = {
+            let pct = String(format: "%.0f%%", avail)
+            guard avail == 0, let meter = model.meters[key] else { return pct }
+            let eta = IndicatorModel.humanDuration(until: Date(timeIntervalSince1970: meter.resetsAtUnix))
+            return "\(pct), \(Localizer.shared.tr("reset_in")) \(eta)"
+        }()
         Button {
             model.primaryMeter = key
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 5) {
                     Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
-                        .font(.system(size: 9))
+                        .font(.caption2)
                         .foregroundColor(isActive ? .accentColor : .secondary)
                         .accessibilityHidden(true)
                     Text(meterLabel(key))
@@ -458,7 +465,7 @@ struct PopoverView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(meterLabel(key))
-        .accessibilityValue(String(format: "%.0f%%", avail))
+        .accessibilityValue(a11yValue)
         .accessibilityHint(Localizer.shared.tr("a11y_meter_hint"))
         .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
     }
@@ -507,7 +514,7 @@ struct IndicatorPreview: View {
     @ObservedObject var model: IndicatorModel
 
     private static let fgFull = Color.primary
-    private static let fgFaded = Color.primary.opacity(IconRenderer.resetAlpha)
+    private static let fgFaded = Color.primary.opacity(IndicatorGeometry.resetAlpha)
 
     var body: some View {
         Canvas { ctx, size in
@@ -545,17 +552,12 @@ struct IndicatorPreview: View {
                 width: radius * 2, height: radius * 2
             ))
         case .polygon:
-            let k = max(3, polygonSides)
-            let base = -Double.pi / 2.0
-            let stepRad = 2.0 * .pi / Double(k)
-            let verts: [CGPoint] = (0..<k).map { i in
-                let a = base - Double(i) * stepRad
-                return CGPoint(x: center.x + radius * cos(a),
-                               y: center.y + radius * sin(a))
-            }
+            let verts = IndicatorGeometry.polygonVertices(
+                center: center, radius: radius, sides: polygonSides, yUp: false
+            )
             if let first = verts.first {
                 path.move(to: first)
-                for i in 1..<k {
+                for i in 1..<verts.count {
                     path.addLine(to: verts[i])
                 }
                 path.closeSubpath()
@@ -564,7 +566,7 @@ struct IndicatorPreview: View {
 
         ctx.stroke(
             path,
-            with: .color(.primary.opacity(0.6)),
+            with: .color(.primary.opacity(IndicatorGeometry.placeholderAlpha)),
             style: StrokeStyle(lineWidth: 1.0, lineCap: .butt, lineJoin: .miter, dash: [2.0, 2.0])
         )
     }
@@ -580,11 +582,11 @@ struct IndicatorPreview: View {
 
         if pct > 0 {
             drawWedgeCW(ctx: ctx, center: center, radius: radius,
-                        sweepRad: pct / 100.0 * (2 * .pi),
+                        sweepRad: IndicatorGeometry.sweepRadians(forPercent: pct),
                         color: Self.fgFull)
         } else if reset > 0 {
             drawWedgeCW(ctx: ctx, center: center, radius: radius,
-                        sweepRad: reset / 100.0 * (2 * .pi),
+                        sweepRad: IndicatorGeometry.sweepRadians(forPercent: reset),
                         color: Self.fgFaded)
         }
     }
@@ -620,14 +622,10 @@ struct IndicatorPreview: View {
         ctx: GraphicsContext, center: CGPoint, radius: CGFloat, k: Int,
         percent: Double, resetProgress: Double
     ) {
-        // Vertices CCW visualmente desde las 12 (Y-abajo => angulo decrece).
-        let base = -Double.pi / 2.0
-        let stepRad = 2.0 * .pi / Double(k)
-        let verts: [CGPoint] = (0..<k).map { i in
-            let a = base - Double(i) * stepRad
-            return CGPoint(x: center.x + radius * cos(a),
-                           y: center.y + radius * sin(a))
-        }
+        // Vertices CCW visualmente desde las 12 (Y-abajo); misma geometría que IconRenderer.
+        let verts = IndicatorGeometry.polygonVertices(
+            center: center, radius: radius, sides: k, yUp: false
+        )
 
         func segmentPath(_ i: Int) -> Path {
             var p = Path()
@@ -638,17 +636,13 @@ struct IndicatorPreview: View {
             return p
         }
 
-        let pct = min(100.0, max(0.0, percent))
-        let reset = min(100.0, max(0.0, resetProgress))
-
-        if pct > 0 {
-            let used = 100.0 - pct
-            let usedN = Int((Double(k) * used / 100.0).rounded())
+        if percent > 0 {
+            let usedN = IndicatorGeometry.usedSegments(sides: k, percent: percent)
             for i in usedN..<k {
                 ctx.fill(segmentPath(i), with: .color(Self.fgFull))
             }
-        } else if reset > 0 {
-            let grayN = Int((Double(k) * reset / 100.0).rounded())
+        } else if resetProgress > 0 {
+            let grayN = IndicatorGeometry.resetSegments(sides: k, resetProgress: resetProgress)
             for i in (k - grayN)..<k {
                 ctx.fill(segmentPath(i), with: .color(Self.fgFaded))
             }

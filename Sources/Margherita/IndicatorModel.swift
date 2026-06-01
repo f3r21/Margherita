@@ -186,7 +186,11 @@ final class IndicatorModel: ObservableObject {
     private var resetTicker: Timer?
     private let log = Logger(subsystem: "local.margherita", category: "model")
 
-    init() {
+    /// - Parameter startServices: cuando es `false`, hidrata el estado desde
+    ///   UserDefaults pero NO arranca el watcher, el timer, ni las comprobaciones
+    ///   del host (jq/hook/red ni la lectura de SMAppService). Permite construir
+    ///   el modelo en tests sin tocar el sistema. En producción se usa el default.
+    init(startServices: Bool = true) {
         let d = UserDefaults.standard
         self.percent = (d.object(forKey: Key.percent) as? Double) ?? 100.0
         self.resetProgress = (d.object(forKey: Key.resetProgress) as? Double) ?? 0.0
@@ -195,7 +199,7 @@ final class IndicatorModel: ObservableObject {
         self.polygonSides = (d.object(forKey: Key.polygonSides) as? Int) ?? 6
         self.primaryMeter = d.string(forKey: Key.primaryMeter) ?? Self.defaultPrimaryMeter
         self.isNotificationsEnabled = d.bool(forKey: Key.isNotificationsEnabled)
-        self.isLaunchAtLoginEnabled = SMAppService.mainApp.status == .enabled
+        self.isLaunchAtLoginEnabled = startServices && SMAppService.mainApp.status == .enabled
         self.showPercentInMenuBar = d.bool(forKey: Key.showPercentInMenuBar)
         self.skippedVersion = d.string(forKey: Key.skippedVersion) ?? ""
 
@@ -207,6 +211,9 @@ final class IndicatorModel: ObservableObject {
         if let t = d.object(forKey: Key.hitZeroAt) as? Double {
             self.hitZeroAt = Date(timeIntervalSince1970: t)
         }
+
+        // Efectos secundarios sobre el host: solo en runtime real.
+        guard startServices else { return }
 
         // El watcher lee el archivo de inmediato y, si dataSource es
         // .statusLine, dispara el primer recompute() via applyStatusLineData.
@@ -538,14 +545,15 @@ final class IndicatorModel: ObservableObject {
                 }
             }
         } catch {
-            print("Error al cambiar Launch at Login (SMAppService): \(error.localizedDescription)")
+            log.error("Error al cambiar Launch at Login (SMAppService): \(error.localizedDescription, privacy: .public)")
         }
     }
 
     private func requestNotificationPermissions() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, error in
             if let error = error {
-                print("Error al solicitar permisos de notificación: \(error)")
+                Logger(subsystem: "local.margherita", category: "notifications")
+                    .error("Error al solicitar permisos de notificación: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

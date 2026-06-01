@@ -31,10 +31,6 @@ enum IconRenderer {
     /// Tamano del icono en puntos. macOS escala a 2x en retina.
     static let pointSize = NSSize(width: 18, height: 18)
 
-    /// Alpha para la fase de espera de reset. Da una sensacion de "gris"
-    /// independientemente del color del foreground que macOS aplique.
-    static let resetAlpha: CGFloat = 0.55
-
     static func render(
         percent: Double,
         resetProgress: Double,
@@ -98,30 +94,21 @@ enum IconRenderer {
                 width: radius * 2, height: radius * 2
             ))
         case .polygon:
-            let k = max(3, polygonSides)
-            let base = Double.pi / 2.0
-            let stepRad = 2.0 * .pi / Double(k)
-            path = NSBezierPath()
-            let first = NSPoint(
-                x: center.x + radius * CGFloat(cos(base)),
-                y: center.y + radius * CGFloat(sin(base))
+            let verts = IndicatorGeometry.polygonVertices(
+                center: center, radius: radius, sides: polygonSides, yUp: true
             )
-            path.move(to: first)
-            for i in 1..<k {
-                let a = base + Double(i) * stepRad
-                let pt = NSPoint(
-                    x: center.x + radius * CGFloat(cos(a)),
-                    y: center.y + radius * CGFloat(sin(a))
-                )
-                path.line(to: pt)
+            path = NSBezierPath()
+            path.move(to: verts[0])
+            for i in 1..<verts.count {
+                path.line(to: verts[i])
             }
             path.close()
         }
-        
+
         path.lineWidth = 1.0
         let pattern: [CGFloat] = [2.0, 2.0]
         path.setLineDash(pattern, count: 2, phase: 0.0)
-        NSColor.black.withAlphaComponent(0.6).setStroke()
+        NSColor.black.withAlphaComponent(IndicatorGeometry.placeholderAlpha).setStroke()
         path.stroke()
     }
 
@@ -133,12 +120,12 @@ enum IconRenderer {
     ) {
         if percent > 0 {
             fillWedgeCW(center: center, radius: radius,
-                        sweepDeg: percent / 100.0 * 360.0,
+                        sweepDeg: IndicatorGeometry.sweepDegrees(forPercent: percent),
                         alpha: 1.0)
         } else if resetProgress > 0 {
             fillWedgeCW(center: center, radius: radius,
-                        sweepDeg: resetProgress / 100.0 * 360.0,
-                        alpha: resetAlpha)
+                        sweepDeg: IndicatorGeometry.sweepDegrees(forPercent: resetProgress),
+                        alpha: IndicatorGeometry.resetAlpha)
         }
     }
 
@@ -189,15 +176,9 @@ enum IconRenderer {
         center: NSPoint, radius: CGFloat, k: Int,
         percent: Double, resetProgress: Double
     ) {
-        let base = Double.pi / 2.0
-        let stepRad = 2.0 * .pi / Double(k)
-        let vertices: [NSPoint] = (0..<k).map { i in
-            let a = base + Double(i) * stepRad
-            return NSPoint(
-                x: center.x + radius * CGFloat(cos(a)),
-                y: center.y + radius * CGFloat(sin(a))
-            )
-        }
+        let vertices = IndicatorGeometry.polygonVertices(
+            center: center, radius: radius, sides: k, yUp: true
+        )
 
         func fillSegment(_ i: Int, alpha: CGFloat) {
             let path = NSBezierPath()
@@ -210,15 +191,14 @@ enum IconRenderer {
         }
 
         if percent > 0 {
-            let used = 100.0 - percent
-            let usedN = Int((Double(k) * used / 100.0).rounded())
+            let usedN = IndicatorGeometry.usedSegments(sides: k, percent: percent)
             for i in usedN..<k {
                 fillSegment(i, alpha: 1.0)
             }
         } else if resetProgress > 0 {
-            let grayN = Int((Double(k) * resetProgress / 100.0).rounded())
+            let grayN = IndicatorGeometry.resetSegments(sides: k, resetProgress: resetProgress)
             for i in (k - grayN)..<k {
-                fillSegment(i, alpha: resetAlpha)
+                fillSegment(i, alpha: IndicatorGeometry.resetAlpha)
             }
         }
     }
