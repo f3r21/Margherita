@@ -1,0 +1,49 @@
+name: Release
+
+# Push a tag like v0.2.0 to build the DMG, compute its checksum, and publish
+# a GitHub Release (which the in-app update checker polls). The tag drives the
+# bundle version, so Info.plist no longer needs to be hand-edited per release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build DMG & publish release
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set bundle version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" Info.plist
+          echo "Bundle version set to $VERSION"
+
+      - name: Build DMG
+        run: make dmg
+
+      - name: Compute checksum
+        id: sha
+        run: echo "sha=$(shasum -a 256 Margherita.dmg | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          cat > notes.md <<EOF
+          Margherita ${GITHUB_REF_NAME}
+
+          SHA-256: ${SHA}
+
+          This build is ad-hoc signed. After installing to /Applications, run:
+            codesign --force --deep --sign - /Applications/Margherita.app && xattr -d com.apple.quarantine /Applications/Margherita.app
+          EOF
+          gh release create "${GITHUB_REF_NAME}" Margherita.dmg \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file notes.md

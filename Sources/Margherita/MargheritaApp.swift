@@ -21,12 +21,21 @@ struct MenuBarLabel: View {
     @ObservedObject var model: IndicatorModel
 
     var body: some View {
-        Image(nsImage: IconRenderer.render(
-            percent: model.percent,
-            resetProgress: model.resetProgress,
-            shape: model.shape,
-            polygonSides: model.polygonSides,
-            isPlaceholder: model.dataSource == .statusLine && model.updatedAt == nil
-        ))
+        HStack(spacing: 3) {
+            Image(nsImage: IconRenderer.render(
+                percent: model.percent,
+                resetProgress: model.resetProgress,
+                shape: model.shape,
+                polygonSides: model.polygonSides,
+                isPlaceholder: model.dataSource == .statusLine && model.updatedAt == nil
+            ))
+            if let text = model.menuBarText {
+                Text(text)
+                    .font(.system(size: 12, weight: .medium).monospacedDigit())
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(model.menuBarAccessibilityLabel)
+        .accessibilityAddTraits(.isButton)
     }
 }

@@ -27,6 +27,14 @@ struct Localizer {
         }
         return String(format: format, arguments: args)
     }
+
+    /// Etiqueta legible para un meter: traducción si existe; si no, humaniza la
+    /// clave snake_case ("monthly_opus" -> "Monthly Opus") en vez de mostrarla cruda.
+    func meterLabel(_ key: String) -> String {
+        let translated = tr(key)
+        if translated != key { return translated }
+        return key.split(separator: "_").map { $0.capitalized }.joined(separator: " ")
+    }
     
     private let translations: [String: [Language: String]] = [
         "waiting_data": [.spanish: "Esperando datos iniciales", .english: "Waiting for initial data"],
@@ -37,12 +45,28 @@ struct Localizer {
         "source_manual": [.spanish: "Fuente: Manual (pruebas)", .english: "Source: Manual (testing)"],
         "jq_missing": [.spanish: "Dependencia 'jq' faltante", .english: "Missing dependency 'jq'"],
         "jq_missing_desc": [.spanish: "Requerido para procesar datos de Claude Code. Instálalo con 'brew install jq'.", .english: "Required to process Claude Code data. Install it with 'brew install jq'."],
+        "watcher_inactive": [.spanish: "Monitor de archivos inactivo", .english: "File monitor inactive"],
+        "watcher_inactive_desc": [.spanish: "No se pudo observar ~/.claude; el indicador no se actualizará. Reinicia Margherita.", .english: "Couldn't watch ~/.claude; the indicator won't update. Restart Margherita."],
+        "hook_error_unreadable": [.spanish: "No se pudo leer settings.json; se dejó intacto para no dañar tu configuración de Claude Code.", .english: "Couldn't read settings.json; left untouched to protect your Claude Code configuration."],
+        "hook_error_write": [.spanish: "No se pudo escribir settings.json.", .english: "Couldn't write settings.json."],
         "claude_integration": [.spanish: "Integración Claude Code", .english: "Claude Code Integration"],
         "linked": [.spanish: "Vinculado", .english: "Linked"],
         "not_linked": [.spanish: "No vinculado", .english: "Not linked"],
         "unlink": [.spanish: "Desvincular", .english: "Unlink"],
         "link": [.spanish: "Vincular", .english: "Link"],
         "meter": [.spanish: "Meter", .english: "Meter"],
+        "meters": [.spanish: "Medidores", .english: "Meters"],
+        "reset_in": [.spanish: "Se restablece en", .english: "Resets in"],
+        "show_percent": [.spanish: "Mostrar % en la barra de menú", .english: "Show % in menu bar"],
+        "copy_command": [.spanish: "Copiar comando", .english: "Copy command"],
+        "skip_version": [.spanish: "Omitir esta versión", .english: "Skip this version"],
+        "a11y_meter_hint": [.spanish: "Usar este medidor para el icono de la barra de menú", .english: "Use this meter for the menu bar icon"],
+        "manual_active": [.spanish: "Modo manual activo", .english: "Manual mode active"],
+        "manual_active_desc": [.spanish: "Valores de prueba, no datos reales de Claude Code.", .english: "Test values, not real Claude Code data."],
+        "a11y_waiting": [.spanish: "Margherita: esperando datos de Claude Code", .english: "Margherita: waiting for Claude Code data"],
+        "a11y_available": [.spanish: "Margherita: %d%% de disponibilidad restante", .english: "Margherita: %d%% availability remaining"],
+        "a11y_exhausted": [.spanish: "Margherita: cuota agotada, se restablece en %@", .english: "Margherita: quota exhausted, resets in %@"],
+        "a11y_exhausted_no_eta": [.spanish: "Margherita: cuota agotada", .english: "Margherita: quota exhausted"],
         "shape": [.spanish: "Figura", .english: "Shape"],
         "sides": [.spanish: "Lados", .english: "Sides"],
         "circle": [.spanish: "Círculo", .english: "Circle"],

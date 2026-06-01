@@ -28,7 +28,11 @@ trap 'rm -f "$tmp"' EXIT
 # `rate_limits` is carried through so future meters surface automatically.
 printf '%s' "$input" | jq '{
   updated_at: (now | todateiso8601),
-  primary_meter: "seven_day",
+  primary_meter: (
+    if (.rate_limits | has("seven_day")) then "seven_day"
+    else (.rate_limits | keys | sort | .[0])
+    end
+  ),
   rate_limits: (
     .rate_limits
     | to_entries
