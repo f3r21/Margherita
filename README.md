@@ -39,6 +39,18 @@ Claude Code  --[stdin JSON]--->  statusline-indicator.sh
 
 ---
 
+## Managing Menu Bar Space
+
+When both Margherita and Claude Desktop are running you will see **two separate icons** in the macOS menu bar. This is expected, not a bug: Margherita and Claude Desktop are independent applications, and macOS does not provide any API for one app to render inside another app's menu bar item. The two icons cannot be merged into one — that is a platform constraint, not a limitation of Margherita.
+
+Margherita is designed to take the smallest footprint possible, and the menu bar stays easy to keep tidy:
+
+* **Minimal by default.** Out of the box Margherita shows only its compact vector icon — no text. Leaving **"Show percent"** *off* in the popover keeps the smallest possible footprint. Turn it on only if you want the numeric percentage next to the icon.
+* **Reorder or tuck it away natively.** Hold **⌘ (Command)** and drag any menu bar icon to reorder it, or drag it off the visible strip to hide it. No extra software required.
+* **Use a menu bar manager.** When the menu bar gets crowded, a manager can collapse or hide icons on demand. [**Ice**](https://github.com/jordanbaird/Ice) is a free, open-source option; **Bartender** is a paid alternative. Margherita works seamlessly with both, precisely because it keeps a single, always-present icon they can manage.
+
+---
+
 ## Free & Native Local Distribution
 
 To distribute and run Margherita without a paid Apple Developer Account, follow these instructions to compile, sign, and install it locally.
