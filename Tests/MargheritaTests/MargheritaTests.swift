@@ -125,6 +125,51 @@ final class MargheritaTests: XCTestCase {
         XCTAssertEqual(model.menuBarText, "65%")
     }
 
+    func testIsAwaitingResetOnlyWhenStatusLineExhaustedWithData() {
+        let model = IndicatorModel(startServices: false)
+        model.dataSource = .statusLine
+        model.primaryMeter = "seven_day"
+        XCTAssertFalse(model.isAwaitingReset)            // aún sin datos
+
+        model.percent = 0.0                              // evita la notificación de agotado
+        let meter = MeterData(usedPercentage: 100.0,
+                              resetsAtUnix: Date().timeIntervalSince1970 + 7200)
+        model.applyStatusLineData(IndicatorFile(
+            updatedAt: "2026-05-20T03:43:56Z", primaryMeter: "seven_day",
+            rateLimits: ["seven_day": meter]
+        ))
+
+        XCTAssertEqual(model.percent, 0.0)
+        XCTAssertTrue(model.isAwaitingReset)
+    }
+
+    func testMenuBarTextShowsCountdownWhenAwaitingResetIgnoringToggle() {
+        let model = IndicatorModel(startServices: false)
+        model.dataSource = .statusLine
+        model.primaryMeter = "seven_day"
+
+        // Estado normal (disponibilidad > 0): respeta el toggle del porcentaje.
+        model.applyStatusLineData(IndicatorFile(
+            updatedAt: "2026-05-20T03:43:56Z", primaryMeter: "seven_day",
+            rateLimits: ["seven_day": MeterData(usedPercentage: 35.0,
+                         resetsAtUnix: Date().timeIntervalSince1970 + 3600)]
+        ))
+        model.showPercentInMenuBar = false
+        XCTAssertNil(model.menuBarText)
+        XCTAssertFalse(model.isAwaitingReset)
+
+        // Estado agotado: cuenta atrás SIEMPRE (ignora el toggle) y nunca nil.
+        model.percent = 0.0
+        model.applyStatusLineData(IndicatorFile(
+            updatedAt: "2026-05-20T03:43:56Z", primaryMeter: "seven_day",
+            rateLimits: ["seven_day": MeterData(usedPercentage: 100.0,
+                         resetsAtUnix: Date().timeIntervalSince1970 + 7200)]
+        ))
+        XCTAssertTrue(model.isAwaitingReset)
+        XCTAssertNotNil(model.menuBarText)                     // nunca barra vacía
+        XCTAssertEqual(model.menuBarText, model.resetETAText)  // es el contador, no "%"
+    }
+
     func testMeterLabelHumanizesUnknownKey() {
         XCTAssertEqual(Localizer.shared.meterLabel("monthly_opus"), "Monthly Opus")
     }

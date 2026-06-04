@@ -16,16 +16,19 @@ struct PopoverView: View {
             statusBanners
             
             HStack(alignment: .top, spacing: 12) {
-                IndicatorPreview(model: model)
-                    .frame(width: 48, height: 48)
-                    .background(Color(nsColor: .controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
-                    )
-                    // Decorativa: los readouts a la derecha ya exponen los números.
-                    .accessibilityHidden(true)
+                // En estado agotado se oculta el preview; basta la fila "Se restablece en X".
+                if !model.isAwaitingReset {
+                    IndicatorPreview(model: model)
+                        .frame(width: 48, height: 48)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                        )
+                        // Decorativa: los readouts a la derecha ya exponen los números.
+                        .accessibilityHidden(true)
+                }
 
                 VStack(alignment: .leading, spacing: 6) {
                     if model.dataSource == .statusLine {
