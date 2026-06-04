@@ -22,13 +22,16 @@ struct MenuBarLabel: View {
 
     var body: some View {
         HStack(spacing: 3) {
-            Image(nsImage: IconRenderer.render(
-                percent: model.percent,
-                resetProgress: model.resetProgress,
-                shape: model.shape,
-                polygonSides: model.polygonSides,
-                isPlaceholder: model.dataSource == .statusLine && model.updatedAt == nil
-            ))
+            // En estado agotado la barra muestra solo la cuenta atrás (sin icono).
+            if !model.isAwaitingReset {
+                Image(nsImage: IconRenderer.render(
+                    percent: model.percent,
+                    resetProgress: model.resetProgress,
+                    shape: model.shape,
+                    polygonSides: model.polygonSides,
+                    isPlaceholder: model.dataSource == .statusLine && model.updatedAt == nil
+                ))
+            }
             if let text = model.menuBarText {
                 Text(text)
                     .font(.system(size: 12, weight: .medium).monospacedDigit())

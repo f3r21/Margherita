@@ -274,11 +274,23 @@ final class IndicatorModel: ObservableObject {
         return Self.humanDuration(until: Date(timeIntervalSince1970: meter.resetsAtUnix))
     }
 
-    /// Texto compacto para la barra de menú ("62%"), o nil si está oculto o aún
-    /// no hay datos (en ese caso se muestra solo el icono de placeholder).
+    /// `true` cuando el uso real (statusLine) está agotado y solo queda esperar el
+    /// reset: ya hay datos (`updatedAt != nil`) y `percent == 0`. El modo manual
+    /// nunca entra en este estado (mantiene icono + slider como banco de pruebas).
+    var isAwaitingReset: Bool {
+        dataSource == .statusLine && updatedAt != nil && percent == 0
+    }
+
+    /// Texto de la barra de menú:
+    ///  - Sin datos aún (placeholder): nil → solo el icono punteado.
+    ///  - Esperando reset: SIEMPRE la cuenta atrás hasta el reset (ignora
+    ///    `showPercentInMenuBar`), y sin icono (ver `MenuBarLabel`). El
+    ///    `?? "soon"` garantiza texto no nil → la barra nunca queda vacía.
+    ///  - Normal: "62%" solo si el usuario activó el porcentaje.
     var menuBarText: String? {
-        guard showPercentInMenuBar else { return nil }
         if dataSource == .statusLine && updatedAt == nil { return nil }
+        if isAwaitingReset { return resetETAText ?? Localizer.shared.tr("soon") }
+        guard showPercentInMenuBar else { return nil }
         return "\(Int(percent.rounded()))%"
     }
 
