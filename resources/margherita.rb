@@ -1,6 +1,6 @@
 cask "margherita" do
-  version "0.2.0"
-  sha256 "79f3b5f629d4e5fb1106aa49ea6ec92e1ff3d08fd60fd7680473de439e8bb8bd"
+  version "0.3.0"
+  sha256 "db9592b7f75d3fe65c1de74a5fbb2379b85953a8e90d1a96efb5a8a4bec31449"
 
   url "https://github.com/f3r21/Margherita/releases/download/v#{version}/Margherita.dmg"
   name "Margherita"
