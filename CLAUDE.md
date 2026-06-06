@@ -41,7 +41,7 @@ Two GitHub Actions workflows (`.github/workflows/`):
 - **`ci.yml`** — on every push to `main` and every PR (concurrency-cancelled per ref). On `macos-14`: `swift --version`, **lints the hook script with `bash -n scripts/statusline-indicator.sh`**, `swift build -c release`, `swift test`, then `make build` as a bundle-assembly gate. It never launches the app.
 - **`release.yml`** — on pushing a `v*` tag. Sets the bundle version *from the tag* (`PlistBuddy` → `CFBundleShortVersionString` + `CFBundleVersion`), runs `make dmg`, computes the DMG `sha256`, and `gh release create`s a GitHub Release with the DMG + checksum + re-sign instructions. The in-app update checker polls that release. It does **not** touch the Homebrew tap or the cask `sha256` — both are manual (see [Distribution](#distribution)).
 
-So cutting a release is: **don't hand-edit the version** → push a `v<x.y.z>` tag → CI builds/publishes the DMG → manually sync `resources/margherita.rb`'s `version` + `sha256` from the published release.
+So cutting a release is: **don't hand-edit the version** → push a `v<x.y.z>` tag → CI builds/publishes the DMG → manually sync the `version` + `sha256` from the published release into **both** cask copies (in-repo `resources/margherita.rb` *and* the live tap's `Casks/margherita.rb` — see [Distribution](#distribution)).
 
 ## Architecture
 
