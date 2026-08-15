@@ -49,6 +49,7 @@ struct Localizer {
         "watcher_inactive_desc": [.spanish: "No se pudo observar ~/.claude; el indicador no se actualizará. Reinicia Margherita.", .english: "Couldn't watch ~/.claude; the indicator won't update. Restart Margherita."],
         "hook_error_unreadable": [.spanish: "No se pudo leer settings.json; se dejó intacto para no dañar tu configuración de Claude Code.", .english: "Couldn't read settings.json; left untouched to protect your Claude Code configuration."],
         "hook_error_write": [.spanish: "No se pudo escribir settings.json.", .english: "Couldn't write settings.json."],
+        "hook_error_script_missing": [.spanish: "No se encontró el script del hook para instalar.", .english: "Couldn't find the hook script to install."],
         "claude_integration": [.spanish: "Integración Claude Code", .english: "Claude Code Integration"],
         "linked": [.spanish: "Vinculado", .english: "Linked"],
         "not_linked": [.spanish: "No vinculado", .english: "Not linked"],

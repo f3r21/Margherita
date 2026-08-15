@@ -3,7 +3,7 @@ BUNDLE   := $(APP_NAME).app
 EXEC     := .build/release/$(APP_NAME)
 SOURCES  := $(shell find Sources -name '*.swift')
 
-.PHONY: build run install clean dmg
+.PHONY: build run install clean dmg install-hook uninstall-hook
 
 build: $(BUNDLE)
 
@@ -45,3 +45,11 @@ dmg: build
 clean:
 	swift package clean
 	rm -rf $(BUNDLE) .build Margherita.dmg dmg_staging
+
+# Installs just the statusLine hook (bash + jq, no app/Xcode/Swift needed).
+# For the console usage line without the menu bar icon at all.
+install-hook:
+	@./scripts/install-hook.sh
+
+uninstall-hook:
+	@./scripts/uninstall-hook.sh

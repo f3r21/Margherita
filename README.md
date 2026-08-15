@@ -48,6 +48,15 @@ Margherita is designed to take the smallest footprint possible, and the menu bar
 * **Minimal by default.** Out of the box Margherita shows only its compact vector icon — no text. Leaving **"Show percent"** *off* in the popover keeps the smallest possible footprint. Turn it on only if you want the numeric percentage next to the icon.
 * **Reorder or tuck it away natively.** Hold **⌘ (Command)** and drag any menu bar icon to reorder it, or drag it off the visible strip to hide it. No extra software required.
 * **Use a menu bar manager.** When the menu bar gets crowded, a manager can collapse or hide icons on demand. [**Ice**](https://github.com/jordanbaird/Ice) is a free, open-source option; **Bartender** is a paid alternative. Margherita works seamlessly with both, precisely because it keeps a single, always-present icon they can manage.
+* **Skip the icon entirely — just the console line, no app.** The menu bar icon and the compact `"7d 31% · 5h 12%"` line printed inside your Claude Code terminal come from the same hook, but they're independent: the line doesn't need the app running at all. If you only want the line, install just the hook, no macOS app required:
+
+  ```bash
+  git clone https://github.com/f3r21/Margherita.git
+  cd Margherita/native
+  make install-hook       # or: ./scripts/install-hook.sh
+  ```
+
+  This only needs `bash` + `jq` (`brew install jq`). It copies the hook script to `~/.claude/margherita/` and points Claude Code's `statusLine` at it — no Xcode, no Swift, no `/Applications` entry, no menu bar icon. To remove it later: `make uninstall-hook`.
 
 ---
 
@@ -120,10 +129,12 @@ You can distribute Margherita as a Homebrew Cask to other machines using a perso
 ## Local Development
 
 ```bash
-make run       # Compile in release mode, bundle as .app, and run Margherita
-make build     # Compile the application bundle
-make clean     # Clean build cache and temporary DMG stages
-make dmg       # Package the application into a distribution-ready Margherita.dmg
+make run             # Compile in release mode, bundle as .app, and run Margherita
+make build           # Compile the application bundle
+make clean           # Clean build cache and temporary DMG stages
+make dmg             # Package the application into a distribution-ready Margherita.dmg
+make install-hook    # Install just the statusLine hook (bash + jq, no app needed)
+make uninstall-hook  # Remove the statusLine hook
 ```
 
 ### Project Layout
@@ -133,7 +144,9 @@ make dmg       # Package the application into a distribution-ready Margherita.dm
 ├── Info.plist                               App manifest (LSUIElement = YES for agent/menubar status)
 ├── Makefile                                 Automation for compilation and packaging
 ├── scripts/
-│   └── statusline-indicator.sh              Claude Code stdin processing hook
+│   ├── statusline-indicator.sh              Claude Code stdin processing hook
+│   ├── install-hook.sh                      Standalone hook installer (no app required)
+│   └── uninstall-hook.sh                    Standalone hook remover
 ├── resources/
 │   ├── AppIcon.icns                         The compiled high-resolution icon bundle
 │   └── margherita.rb                        Homebrew Cask recipe file

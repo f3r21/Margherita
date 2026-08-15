@@ -427,6 +427,14 @@ final class IndicatorModel: ObservableObject {
             return
         }
         isHookInstalled = command.contains("statusline-indicator.sh")
+
+        // Migración: hooks instalados por versiones previas apuntaban dentro
+        // del bundle (Margherita.app/Contents/Resources/...), lo que rompía
+        // el hook si la app se movía o se borraba. Reinstalar silenciosamente
+        // hacia la ruta standalone la primera vez que se detecta el caso.
+        if isHookInstalled && command != Self.standaloneScriptURL.path {
+            installHook()
+        }
     }
 
     private enum SettingsError: LocalizedError {
@@ -474,6 +482,47 @@ final class IndicatorModel: ObservableObject {
         }
     }
 
+    /// Ruta estable fuera del bundle de la app. El hook de Claude Code apunta
+    /// aquí (no a Margherita.app/Contents/Resources/...), para que siga
+    /// funcionando aunque la app se mueva, se actualice o se borre por
+    /// completo — el mismo lugar que usa el instalador standalone
+    /// (scripts/install-hook.sh) cuando no hay app instalada en absoluto.
+    static let standaloneScriptURL: URL = FileManager.default
+        .homeDirectoryForCurrentUser
+        .appendingPathComponent(".claude/margherita/statusline-indicator.sh")
+
+    /// Copia el script del bundle a `standaloneScriptURL`. Se sobrescribe en
+    /// cada instalación para que una app actualizada siempre deje la última
+    /// versión del script, incluso si el hook ya apuntaba ahí. Devuelve la
+    /// ruta destino, o nil si no se encontró un script fuente que copiar.
+    private func installStandaloneScript() -> String? {
+        let sourcePath: String
+        if let bundledPath = Bundle.main.path(forResource: "statusline-indicator.sh", ofType: nil) {
+            sourcePath = bundledPath
+        } else {
+            // Fallback si corre fuera de bundle (por ejemplo en desarrollo).
+            sourcePath = "/Applications/Margherita.app/Contents/Resources/statusline-indicator.sh"
+        }
+        guard FileManager.default.fileExists(atPath: sourcePath) else { return nil }
+
+        let dest = Self.standaloneScriptURL
+        let dir = dest.deletingLastPathComponent()
+        do {
+            if !FileManager.default.fileExists(atPath: dir.path) {
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            }
+            if FileManager.default.fileExists(atPath: dest.path) {
+                try FileManager.default.removeItem(at: dest)
+            }
+            try FileManager.default.copyItem(atPath: sourcePath, toPath: dest.path)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: dest.path)
+            return dest.path
+        } catch {
+            log.error("No se pudo instalar el script standalone: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
     func installHook() {
         let folder = Self.settingsURL.deletingLastPathComponent()
         if !FileManager.default.fileExists(atPath: folder.path) {
@@ -490,13 +539,10 @@ final class IndicatorModel: ObservableObject {
             return
         }
 
-        // Obtener ruta del script dentro del bundle
-        let scriptPath: String
-        if let bundledPath = Bundle.main.path(forResource: "statusline-indicator.sh", ofType: nil) {
-            scriptPath = bundledPath
-        } else {
-            // Fallback si corre fuera de bundle (por ejemplo en desarrollo)
-            scriptPath = "/Applications/Margherita.app/Contents/Resources/statusline-indicator.sh"
+        guard let scriptPath = installStandaloneScript() else {
+            log.error("No se instala el hook: no se encontró el script fuente para copiar")
+            hookError = Localizer.shared.tr("hook_error_script_missing")
+            return
         }
 
         json["statusLine"] = [

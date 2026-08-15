@@ -19,8 +19,8 @@ jobs:
       - name: Swift version
         run: swift --version
 
-      - name: Lint hook script
-        run: bash -n scripts/statusline-indicator.sh
+      - name: Lint hook scripts
+        run: bash -n scripts/statusline-indicator.sh && bash -n scripts/install-hook.sh && bash -n scripts/uninstall-hook.sh
 
       - name: Build (release)
         run: swift build -c release
